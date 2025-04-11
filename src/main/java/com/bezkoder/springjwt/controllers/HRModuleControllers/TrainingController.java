@@ -1,12 +1,15 @@
 package com.bezkoder.springjwt.controllers.HRModuleControllers;
 
 
+import com.bezkoder.springjwt.HRModuleServices.EmployeeService;
 import com.bezkoder.springjwt.dtos.HRModuleDtos.TrainingDTO;
 import com.bezkoder.springjwt.HRModuleServices.TrainingService;
 import com.bezkoder.springjwt.models.Employee;
+import com.bezkoder.springjwt.models.HRModuleEntities.Training;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -18,6 +21,7 @@ public class TrainingController {
 
     @Autowired
     private TrainingService trainingService;
+    private EmployeeService employeeService;
 
     // Ajouter une formation
     @PostMapping
@@ -26,6 +30,11 @@ public class TrainingController {
         return new ResponseEntity<>(createdTraining, HttpStatus.CREATED);
     }
 
+    @GetMapping("/department/{departmentId}")
+
+    public List<Training> getTrainingsByDepartmentId(@PathVariable Long departmentId) {
+        return trainingService.getTrainingsByDepartmentId(departmentId);
+    }
     // Mettre à jour une formation
     @PutMapping("/{id}")
     public ResponseEntity<TrainingDTO> updateTraining(@PathVariable Long id, @RequestBody TrainingDTO trainingDTO) {
@@ -84,6 +93,21 @@ public class TrainingController {
         } catch (Exception e) {
             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
         }
+    }
+
+    @PutMapping("/update-training")
+    public ResponseEntity<String> updateTraining(@RequestBody Map<String, Object> payload) {
+        String email = (String) payload.get("email");
+        Long trainingId = Long.valueOf(payload.get("trainingId").toString());
+        employeeService.assignEmployeeToTraining(email, trainingId);
+        return ResponseEntity.ok("Training updated successfully");
+    }
+
+    @PutMapping("/remove-training")
+    public ResponseEntity<String> removeTraining(@RequestBody Map<String, Object> payload) {
+        String email = (String) payload.get("email");
+        employeeService.removeEmployeeFromTraining(email);
+        return ResponseEntity.ok("Training removed successfully");
     }
 
 

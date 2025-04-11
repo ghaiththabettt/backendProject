@@ -1,6 +1,7 @@
 package com.bezkoder.springjwt.models.HRModuleEntities;
 
 import com.bezkoder.springjwt.models.Employee;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -30,5 +31,6 @@ public class Expense {
 
     @ManyToOne
     @JoinColumn(name = "employee_id")
+    @JsonIgnore
     private Employee employee;
 }

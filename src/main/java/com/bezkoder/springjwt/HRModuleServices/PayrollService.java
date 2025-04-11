@@ -1,5 +1,6 @@
-package com.bezkoder.springjwt.security.services.HRModuleServices;
+package com.bezkoder.springjwt.HRModuleServices;
 
+import com.bezkoder.springjwt.dtos.HRModuleDtos.PayrollDTO;
 import com.bezkoder.springjwt.models.HRModuleEntities.Payroll;
 import com.bezkoder.springjwt.repository.HRModuleRepository.PayrollRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class PayrollService {
@@ -48,4 +50,25 @@ public class PayrollService {
     public void deletePayroll(Long payrollId) {
         payrollRepository.deleteById(payrollId);
     }
+
+    public List<PayrollDTO> getAllPayrollsWithEmployeeInfo() {
+        return payrollRepository.findAll().stream().map(payroll -> {
+            PayrollDTO dto = new PayrollDTO();
+            dto.setPayrollId(payroll.getPayrollId());
+            dto.setBasicSalary((double) payroll.getBasicSalary());
+            dto.setBonuses((double) payroll.getBonuses());
+            dto.setDeductions((double) payroll.getDeductions());
+            dto.setTotalSalary((double) payroll.getTotalSalary());
+            dto.setPayDate(payroll.getPayDate());
+
+            dto.setEmployeeId(payroll.getEmployee().getId());
+            dto.setEmployeeName(payroll.getEmployee().getName() + " " + payroll.getEmployee().getLastName());
+            dto.setEmployeeEmail(payroll.getEmployee().getEmail());
+            dto.setEmployeeDepartment(payroll.getEmployee().getDepartment() != null ?
+                    payroll.getEmployee().getDepartment().getDepartmentName() : null);
+
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
 }

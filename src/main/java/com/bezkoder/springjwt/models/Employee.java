@@ -42,6 +42,9 @@ public class Employee extends User {
     @Column(name = "position")
     private EEmployeePosition position;
 
+
+    @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<EntreeDeTemps> entreeDeTempsList;
     
 
     @ManyToOne
@@ -56,6 +59,7 @@ public class Employee extends User {
     private List<Perks> perks;
 
     @OneToMany(mappedBy = "employee", cascade = CascadeType.REMOVE, orphanRemoval = true)
+    @JsonIgnore
     private List<Expense> expenses;
 
     @OneToMany(mappedBy = "employee", cascade = CascadeType.REMOVE, orphanRemoval = true)

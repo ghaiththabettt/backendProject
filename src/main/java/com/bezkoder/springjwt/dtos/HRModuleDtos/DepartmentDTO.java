@@ -11,6 +11,9 @@ import java.util.List;
 public class DepartmentDTO {
     private Long departmentId;
     private String departmentName;
+    private String phone;
+    private String emailDept;
+    private int totalEmployees;
 
     // Liste d’employés (IDs)
     private List<Long> employeeIds;

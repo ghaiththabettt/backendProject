@@ -6,9 +6,11 @@ import com.bezkoder.springjwt.models.Employee;
 import com.bezkoder.springjwt.models.HRModuleEntities.Attendance;
 import com.bezkoder.springjwt.models.HRModuleEntities.Contract;
 import com.bezkoder.springjwt.models.HRModuleEntities.Department;
+import com.bezkoder.springjwt.models.HRModuleEntities.Training;
 import com.bezkoder.springjwt.repository.EmployeeRepository;
 import com.bezkoder.springjwt.repository.HRModuleRepository.ContractRepository;
 import com.bezkoder.springjwt.repository.HRModuleRepository.DepartmentRepository;
+import com.bezkoder.springjwt.repository.HRModuleRepository.TrainingRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,11 +27,13 @@ public class EmployeeService {
     private final ContractRepository contractRepository;
     private final EmployeeRepository employeeRepository;
     private final DepartmentRepository departmentRepository;
+    private final TrainingRepository trainingRepository;
 
-    public EmployeeService(ContractRepository contractRepository, EmployeeRepository employeeRepository, DepartmentRepository departmentRepository) {
+    public EmployeeService(ContractRepository contractRepository, EmployeeRepository employeeRepository, DepartmentRepository departmentRepository, TrainingRepository trainingRepository) {
         this.contractRepository = contractRepository;
         this.employeeRepository = employeeRepository;
         this.departmentRepository = departmentRepository;
+        this.trainingRepository = trainingRepository;
     }
 
     public List<EmployeeDTO> getAllEmployees() {
@@ -97,12 +101,13 @@ public class EmployeeService {
                 employee.getSalary(),
                 employee.getDateOfBirth(),
                 employee.getPosition() != null ? employee.getPosition().name() : null,
-                employee.getDepartment() != null ? employee.getDepartment().getId() : null,
-                employee.getContract() != null ? employee.getContract().getId() : null,
-                employee.getPhoneNumber(),  // Ajout de phoneNumber
-                employee.getAddress()       // Ajout de address
+                employee.getDepartment() != null ? employee.getDepartment().getDepartmentId() : null, // ✅ ICI
+                employee.getContract() != null ? employee.getContract().getContractId() : null,
+                employee.getPhoneNumber(),
+                employee.getAddress()
         );
     }
+
 
 
     private Employee convertToEntity(EmployeeDTO employeeDTO) {
@@ -137,6 +142,34 @@ public class EmployeeService {
         return employee;
     }
 
+    public void removeEmployeeFromTraining(String email) {
+        Employee employee = employeeRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
 
+        // Même chose ici, logique custom car pas de lien direct
+        System.out.println("Training removed from employee: " + employee.getEmail());
+
+        // Si tu as une table pivot ou une logique dans le front pour gérer ça, c’est ici que tu la mets
+    }
+
+    public void assignEmployeeToTraining(String email, Long trainingId) {
+        Employee employee = employeeRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        Training training = trainingRepository.findById(trainingId)
+                .orElseThrow(() -> new RuntimeException("Training not found"));
+
+        Department trainingDept = training.getDepartment();
+        Department employeeDept = employee.getDepartment();
+
+        if (employeeDept == null || !employeeDept.getDepartmentId().equals(trainingDept.getDepartmentId())) {
+            throw new RuntimeException("Employee does not belong to the same department as the training");
+        }
+
+        // Ici, comme tu n’as pas de relation directe, tu peux ajouter une logique métier, par exemple :
+        // sauvegarder l’association dans une autre table, ou ajouter à une liste custom.
+        // Pour l’instant, on log ou fait une action fictive
+        System.out.println("Employee " + email + " assigned to training " + training.getTrainingName());
+    }
 }
 

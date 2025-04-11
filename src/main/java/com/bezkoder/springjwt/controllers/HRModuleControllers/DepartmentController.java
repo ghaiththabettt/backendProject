@@ -2,6 +2,7 @@ package com.bezkoder.springjwt.controllers.HRModuleControllers;
 
 import com.bezkoder.springjwt.dtos.HRModuleDtos.DepartmentDTO;
 import com.bezkoder.springjwt.HRModuleServices.DepartmentService;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,8 @@ public class DepartmentController {
     }
 
     @GetMapping
+   // @PreAuthorize("hasRole('ADMIN')  or hasRole('ROLE_HR')")
+
     public List<DepartmentDTO> getAllDepartments() {
         return departmentService.getAllDepartments();
     }

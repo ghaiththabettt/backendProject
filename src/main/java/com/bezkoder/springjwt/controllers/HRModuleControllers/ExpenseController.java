@@ -3,15 +3,17 @@ package com.bezkoder.springjwt.controllers.HRModuleControllers;
 
 import com.bezkoder.springjwt.dtos.HRModuleDtos.ExpenseDTO;
 import com.bezkoder.springjwt.HRModuleServices.ExpenseService;
+import com.bezkoder.springjwt.models.HRModuleEntities.Expense;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-
+@CrossOrigin(origins = "*", maxAge = 3600) // Autorise les requêtes CORS depuis n'importe quelle origine
 @RestController
 @RequestMapping("/api/expenses")
+
 public class ExpenseController {
 
     private final ExpenseService expenseService;
@@ -40,19 +42,27 @@ public class ExpenseController {
 
     // Create a new expense
     @PostMapping
-    public ResponseEntity<ExpenseDTO> createExpense(@RequestBody ExpenseDTO expenseDTO) {
-        ExpenseDTO createdExpense = expenseService.createExpense(expenseDTO);
-        return new ResponseEntity<>(createdExpense, HttpStatus.CREATED);
+    public ResponseEntity<Expense> createExpense(@RequestBody ExpenseDTO expenseDTO) {
+        try {
+            System.out.println("Received ExpenseDTO: " + expenseDTO);  // Ajout du log
+            Expense expense = expenseService.createExpense(expenseDTO);
+            return ResponseEntity.status(HttpStatus.CREATED).body(expense);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(null);
+        }
     }
 
+
+
     // Update an existing expense
-    @PutMapping("/{expenseId}")
-    public ResponseEntity<ExpenseDTO> updateExpense(@PathVariable Long expenseId, @RequestBody ExpenseDTO expenseDTO) {
-        ExpenseDTO updatedExpense = expenseService.updateExpense(expenseId, expenseDTO);
-        if (updatedExpense == null) {
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    @PutMapping("/{id}")
+    public ResponseEntity<Expense> updateExpense(@PathVariable Long id, @RequestBody ExpenseDTO expenseDTO) {
+        try {
+            Expense updatedExpense = expenseService.updateExpense(id, expenseDTO);
+            return ResponseEntity.status(HttpStatus.OK).body(updatedExpense);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(null);
         }
-        return new ResponseEntity<>(updatedExpense, HttpStatus.OK);
     }
 
     // Delete an expense

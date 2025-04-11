@@ -1,5 +1,6 @@
 package com.bezkoder.springjwt.models.HRModuleEntities;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -25,7 +26,8 @@ public class Policy {
     private LocalDate updatedDate;
 
     // Relation avec Department : Une policy appartient à un seul département
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.EAGER) // 👈 ajoute ceci
     @JoinColumn(name = "department_id", nullable = false)
+    @JsonBackReference(value="department-policies")
     private Department department;
 }

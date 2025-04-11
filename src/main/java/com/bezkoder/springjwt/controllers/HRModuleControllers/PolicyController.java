@@ -56,4 +56,22 @@ public class PolicyController {
         boolean deleted = policyService.deletePolicy(id);
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
     }
+
+    /*@GetMapping("/department/{departmentId}")
+    public ResponseEntity<List<PolicyDTO>> getPoliciesByDepartment(@PathVariable Long departmentId) {
+        List<PolicyDTO> policies = policyService.getAllPolicyDTOs().stream()
+                .filter(p -> p.getDepartmentId() != null && p.getDepartmentId().equals(departmentId))
+                .toList();
+
+        return ResponseEntity.ok(policies);
+    }*/
+
+    @GetMapping("/department/{departmentId}")
+    public ResponseEntity<List<PolicyDTO>> getPoliciesByDepartment(@PathVariable Long departmentId) {
+        return ResponseEntity.ok(policyService.getPoliciesByDepartmentId(departmentId));
+    }
+
+
+
+
 }

@@ -2,44 +2,75 @@ package com.bezkoder.springjwt.controllers.HRModuleControllers;
 
 import com.bezkoder.springjwt.dtos.HRModuleDtos.PerksDTO;
 import com.bezkoder.springjwt.HRModuleServices.PerksService;
+import com.bezkoder.springjwt.models.HRModuleEntities.Perks;
+import com.bezkoder.springjwt.payload.response.MessageResponse;
+import com.bezkoder.springjwt.repository.HRModuleRepository.PerksRepository;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
+@CrossOrigin(origins = "*", maxAge = 3600) // Autorise les requêtes CORS depuis n'importe quelle origine
+@RestController
+@RequestMapping("/api/perks") // Chemin de base pour toutes les méthodes
 public class PerksController {
+
     private final PerksService perksService;
 
-    public PerksController(PerksService perkService) {
-        this.perksService = perkService;
+    public PerksController(PerksService perksService) {
+        this.perksService = perksService;
     }
 
-    // CREATE
-    @PostMapping
-    public PerksDTO createPerks(@RequestBody PerksDTO dto) {
-        return perksService.createPerks(dto);
+    // CREATE: Ajouter un nouveau perk
+    @PostMapping("/create")
+    public ResponseEntity<?> createPerks(@RequestBody PerksDTO dto) {
+        try {
+            System.out.println("Received perksType: " + dto.getPerksType());
+            PerksDTO createdPerks = perksService.createPerks(dto);
+            return ResponseEntity.ok(createdPerks);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Error: " + ex.getMessage()));
+        }
     }
 
-    // READ (all)
-    @GetMapping
-    public List<PerksDTO> getAllPerks() {
-        return perksService.getAllPerks();
+    // READ: Récupérer tous les perks
+    @GetMapping("/all")
+    public ResponseEntity<List<PerksDTO>> getAllPerks() {
+        List<PerksDTO> perksList = perksService.getAllPerks();
+        return ResponseEntity.ok(perksList);
     }
 
-    // READ (by ID)
+    // READ: Récupérer un perk par son ID
     @GetMapping("/{id}")
-    public PerksDTO getPerksById(@PathVariable Long id) {
-        return perksService.getPerksById(id);
+    public ResponseEntity<?> getPerksById(@PathVariable Long id) {
+        try {
+            PerksDTO perks = perksService.getPerksById(id);
+            return ResponseEntity.ok(perks);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Error: " + ex.getMessage()));
+        }
     }
 
-    // UPDATE
-    @PutMapping("/{id}")
-    public PerksDTO updatePerks(@PathVariable Long id, @RequestBody PerksDTO dto) {
-        return perksService.updatePerks(id, dto);
+    // UPDATE: Mettre à jour un perk existant
+    @PutMapping("/update/{id}")
+    public ResponseEntity<?> updatePerks(@PathVariable Long id, @RequestBody PerksDTO perksDTO) {
+        try {
+            PerksDTO updatedPerks = perksService.updatePerks(id, perksDTO);
+            return ResponseEntity.ok(updatedPerks);
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Error: " + ex.getMessage()));
+        }
     }
 
-    // DELETE
-    @DeleteMapping("/{id}")
-    public void deletePerks(@PathVariable Long id) {
-        perksService.deletePerks(id);
+    // DELETE: Supprimer un perk par son ID
+    @DeleteMapping("/delete/{id}")
+    public ResponseEntity<?> deletePerks(@PathVariable Long id) {
+        try {
+            perksService.deletePerks(id);
+            return ResponseEntity.ok(new MessageResponse("Perk deleted successfully"));
+        } catch (RuntimeException ex) {
+            return ResponseEntity.badRequest().body(new MessageResponse("Error: " + ex.getMessage()));
+        }
     }
 }

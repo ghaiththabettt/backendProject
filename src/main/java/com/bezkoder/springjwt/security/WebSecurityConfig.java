@@ -93,19 +93,33 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
-                    auth.requestMatchers("/api/auth/**").permitAll()  // Authentification ouverte
+                    auth.requestMatchers("/api/auth/**","/api/trainings/**", "/api/employee/**", "/api/policies/**","/api/perks/**","/api/expenses/**").permitAll()  // Authentification ouverte
                             .requestMatchers("/api/test/all").permitAll()
+                            .requestMatchers("/api/trainings/**").permitAll()
+                            .requestMatchers("/api/expenses/**").permitAll()  // accès public pour tester
+
+                            .requestMatchers("/api/entreesDeTemps/**").permitAll()
+
+                            .requestMatchers("/api/employee/**").permitAll()  // accès public pour tester
+                            .requestMatchers("/api/policies/**").permitAll()   // accès public pour tester
+                           .requestMatchers("/api/employee/department/**").permitAll()
+                            .requestMatchers("/api/perks/**").permitAll()
                             .requestMatchers("/api/job-positions/**").authenticated()
                             .requestMatchers("/api/auth/admin/signup").hasRole("ADMIN")  // Seulement admin peut accéder aux endpoints sous /admin
                             .requestMatchers("/api/test/test-email").permitAll()
-                            .requestMatchers("/api/employee/employee").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
+                           .requestMatchers("/api/employee/employee").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
                             .requestMatchers("/api/employee/{id}").hasAnyRole("ADMIN", "HR") // Toute autre requête sur employee nécessite une auth
                             .requestMatchers("/api/employee/all/**").authenticated() // Toute autre requête sur employee nécessite une auth
                             .requestMatchers("/admin/employees/edit-employee").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
+
+                            .requestMatchers("/api/employees").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
+
                             .requestMatchers("/api/Department").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
                             .requestMatchers("/api/Contract").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
-                            .requestMatchers("/api/employees").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
                             .requestMatchers("/api/trainings/with-participants").permitAll()
+                            .requestMatchers("/api/payrolls/**").permitAll()
+
+
 
 
                             .anyRequest().authenticated()

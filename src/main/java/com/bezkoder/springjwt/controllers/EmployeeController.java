@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
@@ -46,7 +47,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/position/{userId}")
-    @PreAuthorize("hasRole('USER') or hasRole('EMPLOYEE') or hasRole('ADMIN')")
+    //@PreAuthorize("hasRole('USER') or hasRole('EMPLOYEE') or hasRole('ADMIN')")
     public ResponseEntity<?> getEmployeePosition(@PathVariable Long userId) {
         // First check if the user exists
         Optional<User> userOptional = userRepository.findById(userId);
@@ -81,7 +82,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/my-position")
-    @PreAuthorize("hasRole('EMPLOYEE') or hasRole('ADMIN')")
+    //@PreAuthorize("hasRole('EMPLOYEE') or hasRole('ADMIN')")
     public ResponseEntity<?> getMyPosition() {
         // Get the current authenticated user
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -267,7 +268,7 @@ public class EmployeeController {
 
     // UPDATE (mettre à jour un employé)
 
-    @PreAuthorize("hasRole('USER') or hasRole('EMPLOYEE') or hasRole('ADMIN')")
+    // @PreAuthorize("hasRole('USER') or hasRole('EMPLOYEE') or hasRole('ADMIN')")
 
     @PutMapping("/{id}")
     public Employee updateEmployee(@PathVariable Long id, @RequestBody EmployeeDTO dto) {
@@ -289,4 +290,40 @@ public class EmployeeController {
     public void deleteEmployee(@PathVariable Long id) {
         employeeService.deleteEmployee(id);
     }
+
+    // 🔹 Récupérer les employés par département
+    /*@GetMapping("/department/{departmentId}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('ROLE_HR')")
+    public ResponseEntity<List<EmployeeDTO>> getEmployeesByDepartment(@PathVariable Long departmentId) {
+        List<EmployeeDTO> employees = employeeService.getAllEmployees()
+                .stream()
+                .filter(e -> e.getDepartmentId() != null && e.getDepartmentId().equals(departmentId))
+                .toList();
+
+        return ResponseEntity.ok(employees);
+    }*/
+
+    @GetMapping("/department/{id}")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('HR')")
+    public List<EmployeeDTO> getEmployeesByDepartmentId(@PathVariable Long id) {
+        return employeeService.getAllEmployees()
+                .stream()
+                .filter(emp -> emp.getDepartmentId() != null && emp.getDepartmentId().equals(id))
+                .collect(Collectors.toList());
+    }
+    @GetMapping("/list")
+    public ResponseEntity<List<Map<String, Object>>> getEmployeeList() {
+        List<Employee> employees = employeeRepository.findAll();
+        List<Map<String, Object>> employeeList = employees.stream().map(emp -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", emp.getId());
+            map.put("name", emp.getName());
+            map.put("lastName", emp.getLastName());
+            return map;
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(employeeList);
+    }
+
+
+
 }

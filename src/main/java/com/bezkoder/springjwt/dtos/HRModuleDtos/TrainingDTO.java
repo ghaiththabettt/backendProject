@@ -12,6 +12,7 @@ public class TrainingDTO {
     private LocalDate startDate;
     private LocalDate endDate;
     private String trainingType;
+    private String trainingName ;
 
 
     // Exemple : liste d'employés participants (IDs)

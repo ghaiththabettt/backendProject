@@ -40,37 +40,52 @@ public class ExpenseService {
     }
 
     // Create a new expense
-    public ExpenseDTO createExpense(ExpenseDTO expenseDTO) {
-        Employee employee = employeeRepository.findById(expenseDTO.getEmployeeId())
-                .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
+    public Expense createExpense(ExpenseDTO expenseDTO) {
+        // Récupérer l'employé à partir de son ID
+        Optional<Employee> employeeOpt = employeeRepository.findById(expenseDTO.getEmployeeId());
+        if (!employeeOpt.isPresent()) {
+            throw new IllegalArgumentException("Employee not found");
+        }
 
+        Employee employee = employeeOpt.get();
+
+        // Créer une nouvelle instance de Expense et la remplir avec les données du DTO
         Expense expense = new Expense();
+        expense.setType(TypeExpense.valueOf(expenseDTO.getType()));
         expense.setAmount(expenseDTO.getAmount());
         expense.setDate(expenseDTO.getDate());
-        expense.setType(TypeExpense.valueOf(expenseDTO.getType().toUpperCase()));
-        expense.setStatus(StatusExpense.valueOf(expenseDTO.getStatus().toUpperCase()));
+        expense.setStatus(StatusExpense.valueOf(expenseDTO.getStatus()));
         expense.setEmployee(employee);
 
-        Expense savedExpense = expenseRepository.save(expense);
-        return convertToDTO(savedExpense);
+        // Sauvegarder la dépense dans la base de données
+        return expenseRepository.save(expense);
     }
 
-    // Update an existing expense
-    public ExpenseDTO updateExpense(Long expenseId, ExpenseDTO expenseDTO) {
-        Expense existingExpense = expenseRepository.findById(expenseId)
-                .orElseThrow(() -> new IllegalArgumentException("Expense not found"));
+    // Méthode pour mettre à jour une dépense
+    public Expense updateExpense(Long expenseId, ExpenseDTO expenseDTO) {
+        // Récupérer la dépense existante
+        Optional<Expense> existingExpenseOpt = expenseRepository.findById(expenseId);
+        if (!existingExpenseOpt.isPresent()) {
+            throw new IllegalArgumentException("Expense not found");
+        }
 
-        Employee employee = employeeRepository.findById(expenseDTO.getEmployeeId())
-                .orElseThrow(() -> new IllegalArgumentException("Employee not found"));
+        Expense existingExpense = existingExpenseOpt.get();
 
+        // Mettre à jour les champs de la dépense
+        existingExpense.setType(TypeExpense.valueOf(expenseDTO.getType()));
         existingExpense.setAmount(expenseDTO.getAmount());
         existingExpense.setDate(expenseDTO.getDate());
-        existingExpense.setType(TypeExpense.valueOf(expenseDTO.getType().toUpperCase()));
-        existingExpense.setStatus(StatusExpense.valueOf(expenseDTO.getStatus().toUpperCase()));
-        existingExpense.setEmployee(employee);
+        existingExpense.setStatus(StatusExpense.valueOf(expenseDTO.getStatus()));
 
-        Expense updatedExpense = expenseRepository.save(existingExpense);
-        return convertToDTO(updatedExpense);
+        // Récupérer et associer l'employé
+        Optional<Employee> employeeOpt = employeeRepository.findById(expenseDTO.getEmployeeId());
+        if (!employeeOpt.isPresent()) {
+            throw new IllegalArgumentException("Employee not found");
+        }
+        existingExpense.setEmployee(employeeOpt.get());
+
+        // Sauvegarder la dépense mise à jour
+        return expenseRepository.save(existingExpense);
     }
 
     // Delete an expense
@@ -91,4 +106,5 @@ public class ExpenseService {
         expenseDTO.setEmployeeId(expense.getEmployee().getId());
         return expenseDTO;
     }
+
 }

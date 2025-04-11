@@ -57,6 +57,9 @@ public class TrainingService {
         return convertToDTO(savedTraining);
     }
 
+    public List<Training> getTrainingsByDepartmentId(Long departmentId) {
+        return trainingRepository.findByDepartmentDepartmentId(departmentId);
+    }
     // Mettre à jour une formation
     public TrainingDTO updateTraining(Long id, TrainingDTO trainingDTO) {
         Optional<Training> existingTraining = trainingRepository.findById(id);
@@ -130,6 +133,38 @@ public class TrainingService {
 
         return result;
     }
+
+    public void removeEmployeeFromTraining(String email) {
+        Employee employee = employeeRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        // Même chose ici, logique custom car pas de lien direct
+        System.out.println("Training removed from employee: " + employee.getEmail());
+
+        // Si tu as une table pivot ou une logique dans le front pour gérer ça, c’est ici que tu la mets
+    }
+
+    public void assignEmployeeToTraining(String email, Long trainingId) {
+        Employee employee = employeeRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("Employee not found"));
+
+        Training training = trainingRepository.findById(trainingId)
+                .orElseThrow(() -> new RuntimeException("Training not found"));
+
+        Department trainingDept = training.getDepartment();
+        Department employeeDept = employee.getDepartment();
+
+        if (employeeDept == null || !employeeDept.getDepartmentId().equals(trainingDept.getDepartmentId())) {
+            throw new RuntimeException("Employee does not belong to the same department as the training");
+        }
+
+        // Ici, comme tu n’as pas de relation directe, tu peux ajouter une logique métier, par exemple :
+        // sauvegarder l’association dans une autre table, ou ajouter à une liste custom.
+        // Pour l’instant, on log ou fait une action fictive
+        System.out.println("Employee " + email + " assigned to training " + training.getTrainingName());
+    }
+
+
 
 
 }

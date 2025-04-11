@@ -76,6 +76,8 @@ public class PolicyService {
                     dto.setPolicyId(policy.getPolicyId());
                     dto.setPolicyName(policy.getTitle());
                     dto.setDescription(policy.getDescription());
+                    dto.setDepartmentId(policy.getDepartment() != null ? policy.getDepartment().getDepartmentId() : null); // ✅
+
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -90,4 +92,10 @@ public class PolicyService {
         }
         return false;
     }
+
+    public List<PolicyDTO> getPoliciesByDepartmentId(Long departmentId) {
+        return policyRepository.findByDepartmentId(departmentId);
+    }
+
+
 }

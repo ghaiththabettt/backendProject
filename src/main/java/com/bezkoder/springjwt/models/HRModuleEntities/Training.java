@@ -1,6 +1,8 @@
 package com.bezkoder.springjwt.models.HRModuleEntities;
 
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -29,5 +31,6 @@ public class Training {
     // Relation avec Department : Un département organise plusieurs formations
     @ManyToOne
     @JoinColumn(name = "department_id", nullable = false)
+    @JsonBackReference
     private Department department;
 }
