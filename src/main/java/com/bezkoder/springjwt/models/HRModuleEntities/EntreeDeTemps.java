@@ -58,7 +58,8 @@ public class EntreeDeTemps {
     @Column(name = "loc_fin_adresse", length = 500)
     private String localisationFinAdresse;
 
-    @OneToMany(mappedBy = "entreeDeTemps", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    // Dans EntreeDeTemps.java
+    @OneToMany(mappedBy = "entreeDeTemps", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY) // <--- CHANGER ICI
     private List<Pause> pauses = new ArrayList<>();
 
     @Column(length = 1000)

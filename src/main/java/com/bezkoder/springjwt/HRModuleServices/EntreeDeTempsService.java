@@ -210,8 +210,11 @@ public class EntreeDeTempsService {
     }
 
     public EntreeDeTempsDTO mettreEnPause(PauseRequest request) {
-        EntreeDeTemps pointage = entreeDeTempsRepository.findById(request.getPointageId())
+        EntreeDeTemps pointage = entreeDeTempsRepository.findById(request.getPointageId()) // Ici, request.getPointageId() VAUT 15
                 .orElseThrow(() -> new RuntimeException("Pointage non trouvé: ID " + request.getPointageId()));
+
+        // Log pour vérifier l'objet récupéré
+        System.out.println(">>> [mettreEnPause] Pointage trouvé: ID=" + pointage.getId() + ", Employé=" + pointage.getEmployee().getId());
 
         if (pointage.getStatus() == Status.Termine) {
             throw new RuntimeException("Ce pointage est déjà terminé.");
@@ -225,15 +228,26 @@ public class EntreeDeTempsService {
         }
 
         Pause nouvellePause = new Pause();
-        nouvellePause.setEntreeDeTemps(pointage);
+        nouvellePause.setEntreeDeTemps(pointage); // <-- Association CRUCIALE
         nouvellePause.setDebut(LocalDateTime.now());
         nouvellePause.setTypePause(request.getTypePause());
         nouvellePause.setNote(request.getNote());
 
+        // Log pour vérifier l'association
+        System.out.println(">>> [mettreEnPause] Nouvelle pause créée, associée à EntreeDeTemps ID: " + (nouvellePause.getEntreeDeTemps() != null ? nouvellePause.getEntreeDeTemps().getId() : "NULL"));
+
+        // ÉTAPE 4: Ajout à la collection et mise à jour du statut
         pointage.getPauses().add(nouvellePause);
         pointage.setStatus(Status.En_pause);
 
+        // ÉTAPE 5: Sauvegarde
+        // C'est ici ou pendant cette sauvegarde que Hibernate génère l'INSERT SQL
+        // qui échoue car il met NULL pour entree_de_temps_id.
+        System.out.println(">>> [mettreEnPause] Tentative de sauvegarde de EntreeDeTemps ID: " + pointage.getId());
         EntreeDeTemps updatedPointage = entreeDeTempsRepository.save(pointage);
+        System.out.println(">>> [mettreEnPause] Sauvegarde de EntreeDeTemps terminée.");
+
+
         return mapToDto(updatedPointage);
     }
 

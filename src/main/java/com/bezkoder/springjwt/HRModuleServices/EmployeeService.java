@@ -1,6 +1,7 @@
 package com.bezkoder.springjwt.HRModuleServices;
 
 import com.bezkoder.springjwt.dtos.HRModuleDtos.EmployeeDTO;
+import com.bezkoder.springjwt.dtos.HRModuleDtos.EmployeeListDTO;
 import com.bezkoder.springjwt.models.EEmployeePosition;
 import com.bezkoder.springjwt.models.Employee;
 import com.bezkoder.springjwt.models.HRModuleEntities.Attendance;
@@ -46,6 +47,13 @@ public class EmployeeService {
         return employee.map(this::convertToDTO).orElse(null);
     }
 
+    public List<EmployeeListDTO> getEmployeeList() {
+        return employeeRepository.findEmployeeList();
+        // Ou si vous récupérez les entités complètes :
+        // return employeeRepository.findAllByOrderByNameAscLastNameAsc().stream()
+        //      .map(emp -> new EmployeeListDTO(emp.getId(), emp.getName() + " " + emp.getLastName()))
+        //      .collect(Collectors.toList());
+    }
     public EmployeeDTO createEmployee(EmployeeDTO employeeDTO) {
         Employee employee = convertToEntity(employeeDTO);
         employee = employeeRepository.save(employee);

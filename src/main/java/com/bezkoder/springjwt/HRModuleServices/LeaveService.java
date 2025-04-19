@@ -2,14 +2,23 @@ package com.bezkoder.springjwt.HRModuleServices;
 
 
 import com.bezkoder.springjwt.dtos.HRModuleDtos.LeaveDTO;
+import com.bezkoder.springjwt.models.HRModuleEntities.DurationType;
 import com.bezkoder.springjwt.models.HRModuleEntities.Leave;
 import com.bezkoder.springjwt.models.Employee;
+import com.bezkoder.springjwt.models.HRModuleEntities.LeaveType;
+import com.bezkoder.springjwt.models.HRModuleEntities.StatusLeave;
+import com.bezkoder.springjwt.models.User;
 import com.bezkoder.springjwt.repository.HRModuleRepository.LeaveRepository;
 import com.bezkoder.springjwt.repository.EmployeeRepository;
+import com.bezkoder.springjwt.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 public class LeaveService {
@@ -18,71 +27,202 @@ public class LeaveService {
     private LeaveRepository leaveRepository;
 
     @Autowired
-    private EmployeeRepository employeeRepository;
+    private EmployeeRepository employeeRepository; // Autowire Employee Repository
 
-    // Convertir LeaveDTO en Leave entity
-    private Leave convertToEntity(LeaveDTO leaveDTO) {
-        Employee employee = employeeRepository.findById(leaveDTO.getEmployeeId())
-                .orElseThrow(() -> new RuntimeException("Employee not found"));
+    @Autowired
+    private UserRepository userRepository; // Autowire User Repository
 
-        return new Leave(
-                leaveDTO.getLeaveId(),
-                leaveDTO.getLeaveType(),
-                leaveDTO.getStartDate(),
-                leaveDTO.getEndDate(),
-                leaveDTO.getStatusLeave(),
-                employee
-        );
+    // --- Conversion Helpers ---
+
+    private Leave convertToEntity(LeaveDTO dto, Leave existingLeave) {
+        Leave leave = (existingLeave != null) ? existingLeave : new Leave();
+
+        // Find the employee - crucial for linking the request
+        Employee employee = employeeRepository.findById(dto.getEmployeeId())
+                .orElseThrow(() -> new EntityNotFoundException("Employee not found with ID: " + dto.getEmployeeId()));
+        leave.setEmployee(employee);
+
+        // Map fields from DTO, allowing updates only for certain fields or statuses
+        leave.setLeaveType(LeaveType.valueOf(dto.getLeaveType())); // Convert string to enum
+        leave.setStartDate(dto.getStartDate());
+        leave.setEndDate(dto.getEndDate());
+        leave.setDurationType(DurationType.valueOf(dto.getDurationType()));
+        leave.setNumberOfDays(dto.getNumberOfDays()); // Allow setting directly, or recalculate in @PrePersist/@PreUpdate
+        leave.setReason(dto.getReason());
+        leave.setNote(dto.getNote());
+
+        // Fields usually set by system/actions, not directly from add/update DTO
+        if (leave.getLeaveId() == null) { // Only on creation
+            leave.setStatusLeave(StatusLeave.PENDING);
+            leave.setRequestedOn(LocalDate.now());
+            leave.setActionedBy(null);
+            leave.setActionDate(null);
+        }
+
+        // Optional: recalculate days based on dates/duration if needed
+        // leave.calculateDays();
+
+        return leave;
     }
 
-    // Convertir Leave entity en LeaveDTO
     private LeaveDTO convertToDTO(Leave leave) {
-        LeaveDTO leaveDTO = new LeaveDTO();
-        leaveDTO.setLeaveId(leave.getLeaveId());
-        leaveDTO.setStatusLeave(leave.getStatusLeave());
-        leaveDTO.setStartDate(leave.getStartDate());
-        leaveDTO.setEndDate(leave.getEndDate());
-        leaveDTO.setLeaveType(leave.getLeaveType());
-        leaveDTO.setEmployeeId(leave.getEmployee().getId());
-        return leaveDTO;
+        LeaveDTO dto = new LeaveDTO();
+        dto.setLeaveId(leave.getLeaveId());
+        dto.setLeaveType(leave.getLeaveType().name());
+        dto.setStartDate(leave.getStartDate());
+        dto.setEndDate(leave.getEndDate());
+        dto.setNumberOfDays(leave.getNumberOfDays());
+        dto.setDurationType(leave.getDurationType().name());
+        dto.setStatusLeave(leave.getStatusLeave().name());
+        dto.setReason(leave.getReason());
+        dto.setNote(leave.getNote());
+        dto.setRequestedOn(leave.getRequestedOn());
+        dto.setActionDate(leave.getActionDate());
+
+        if (leave.getEmployee() != null) {
+            dto.setEmployeeId(leave.getEmployee().getId());
+            dto.setEmployeeName(leave.getEmployee().getName() + " " + leave.getEmployee().getLastName());
+            if (leave.getEmployee().getDepartment() != null) {
+                dto.setDepartmentName(leave.getEmployee().getDepartment().getDepartmentName());
+            } else {
+                dto.setDepartmentName("N/A");
+            }
+            dto.setEmployeeImg(null);
+        } else {
+            System.err.println("Warning: Employee is null for Leave ID: " + leave.getLeaveId());
+        }
+
+        System.out.println("--- Converting Leave ID: " + leave.getLeaveId() + " ---");
+        System.out.println("Raw Action Date from Entity: " + leave.getActionDate());
+        User actioner = leave.getActionedBy();
+        if (actioner != null) {
+            System.out.println("Actioned By User Object: PRESENT (ID: " + actioner.getId() + ")");
+            try {
+                String firstName = actioner.getName();
+                String lastName = actioner.getLastName();
+                System.out.println("Actioned By User Name: " + firstName);
+                System.out.println("Actioned By User Last Name: " + lastName);
+                if (firstName == null || lastName == null) {
+                    System.err.println("Warning: User (ID: " + actioner.getId() + ") has null name/lastName.");
+                    dto.setActionedByName("[Name Unavailable]");
+                } else {
+                    dto.setActionedByName(firstName + " " + lastName);
+                }
+                dto.setActionedById(actioner.getId());
+            } catch (Exception e) { // Attrape toute exception ici pour le log
+                System.err.println("Error accessing ActionedBy User details for Leave ID: " + leave.getLeaveId());
+                e.printStackTrace();
+                dto.setActionedById(null);
+                dto.setActionedByName("[Access Error]");
+            }
+        } else {
+            System.out.println("Actioned By User Object: NULL");
+            dto.setActionedById(null);
+            dto.setActionedByName(null);
+        }
+        System.out.println("DTO ActionDate assigned: " + dto.getActionDate());
+        System.out.println("--- End Conversion for Leave ID: " + leave.getLeaveId() + " ---");
+
+        return dto;
     }
 
-    // Ajouter un nouveau congé
+    // --- CRUD and Action Methods ---
+
+    @Transactional
     public LeaveDTO addLeave(LeaveDTO leaveDTO) {
-        Leave leave = convertToEntity(leaveDTO);
-        leave = leaveRepository.save(leave);
-        return convertToDTO(leave);
+        // Ensure employeeId is provided
+        if (leaveDTO.getEmployeeId() == null) {
+            throw new IllegalArgumentException("Employee ID is required to create a leave request.");
+        }
+        Leave leave = convertToEntity(leaveDTO, null); // Create new entity
+        Leave savedLeave = leaveRepository.save(leave);
+        return convertToDTO(savedLeave);
     }
 
-    // Récupérer tous les congés
     public List<LeaveDTO> getAllLeaves() {
-        List<Leave> leaves = leaveRepository.findAll();
-        return leaves.stream().map(this::convertToDTO).toList();
+        // Utilise la nouvelle méthode du repository avec JOIN FETCH
+        return leaveRepository.findAllWithDetails()
+                .stream()
+                .map(this::convertToDTO) // Maintenant, actionedBy et employee devraient être chargés
+                .collect(Collectors.toList());
     }
 
-    // Récupérer un congé par son ID
+    // *** MODIFICATION ICI ***
     public LeaveDTO getLeaveById(Long leaveId) {
-        Leave leave = leaveRepository.findById(leaveId)
-                .orElseThrow(() -> new RuntimeException("Leave not found"));
+        // Utilise la nouvelle méthode du repository avec JOIN FETCH
+        Leave leave = leaveRepository.findByIdWithDetails(leaveId)
+                .orElseThrow(() -> new EntityNotFoundException("Leave not found with ID: " + leaveId));
+        // actionedBy et employee devraient être chargés grâce au JOIN FETCH
         return convertToDTO(leave);
     }
-
-    // Mettre à jour un congé
+    @Transactional
     public LeaveDTO updateLeave(Long leaveId, LeaveDTO leaveDTO) {
-        Leave leave = leaveRepository.findById(leaveId)
-                .orElseThrow(() -> new RuntimeException("Leave not found"));
+        Leave existingLeave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new EntityNotFoundException("Leave not found with ID: " + leaveId));
 
-        leave.setLeaveType(leaveDTO.getLeaveType());
-        leave.setStartDate(leaveDTO.getStartDate());
-        leave.setEndDate(leaveDTO.getEndDate());
-        leave.setStatusLeave(leaveDTO.getStatusLeave());
+        // Business Rule: Only allow updates if the status is PENDING
+        if (existingLeave.getStatusLeave() != StatusLeave.PENDING) {
+            throw new IllegalStateException("Cannot update a leave request that is already " + existingLeave.getStatusLeave());
+        }
 
-        leave = leaveRepository.save(leave);
-        return convertToDTO(leave);
+        // Ensure employee cannot be changed during update
+        if (!existingLeave.getEmployee().getId().equals(leaveDTO.getEmployeeId())) {
+            throw new IllegalArgumentException("Cannot change the employee associated with the leave request.");
+        }
+
+        // Update allowed fields using the converter
+        Leave updatedLeaveData = convertToEntity(leaveDTO, existingLeave);
+
+        Leave savedLeave = leaveRepository.save(updatedLeaveData);
+        return convertToDTO(savedLeave);
     }
 
-    // Supprimer un congé
+    @Transactional
     public void deleteLeave(Long leaveId) {
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new EntityNotFoundException("Leave not found with ID: " + leaveId));
+
+        // Business Rule: Optional - prevent deletion of approved/rejected leaves?
+        // if (leave.getStatusLeave() != StatusLeave.PENDING) {
+        //     throw new IllegalStateException("Cannot delete a leave request that is already " + leave.getStatusLeave());
+        // }
+
         leaveRepository.deleteById(leaveId);
+    }
+
+    @Transactional
+    public LeaveDTO approveLeave(Long leaveId, Long actionUserId) {
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new EntityNotFoundException("Leave not found with ID: " + leaveId));
+        User actionUser = userRepository.findById(actionUserId)
+                .orElseThrow(() -> new EntityNotFoundException("User performing action not found with ID: " + actionUserId));
+
+        if (leave.getStatusLeave() != StatusLeave.PENDING) {
+            throw new IllegalStateException("Leave request is not in PENDING status. Current status: " + leave.getStatusLeave());
+        }
+
+        leave.setStatusLeave(StatusLeave.APPROVED);
+        leave.setActionedBy(actionUser);
+        leave.setActionDate(LocalDate.now());
+        Leave savedLeave = leaveRepository.save(leave);
+        return convertToDTO(savedLeave);
+    }
+
+    @Transactional
+    public LeaveDTO rejectLeave(Long leaveId, Long actionUserId) {
+        Leave leave = leaveRepository.findById(leaveId)
+                .orElseThrow(() -> new EntityNotFoundException("Leave not found with ID: " + leaveId));
+        User actionUser = userRepository.findById(actionUserId)
+                .orElseThrow(() -> new EntityNotFoundException("User performing action not found with ID: " + actionUserId));
+
+        if (leave.getStatusLeave() != StatusLeave.PENDING) {
+            throw new IllegalStateException("Leave request is not in PENDING status. Current status: " + leave.getStatusLeave());
+        }
+
+        leave.setStatusLeave(StatusLeave.REJECTED);
+        leave.setActionedBy(actionUser); // Store who rejected it
+        leave.setActionDate(LocalDate.now());
+        Leave savedLeave = leaveRepository.save(leave);
+        return convertToDTO(savedLeave);
     }
 }

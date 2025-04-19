@@ -99,6 +99,7 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                             .requestMatchers("/api/expenses/**").permitAll()  // accès public pour tester
 
                             .requestMatchers("/api/entreesDeTemps/**").permitAll()
+                            .requestMatchers("/api/leaves/**").permitAll()
 
                             .requestMatchers("/api/employee/**").permitAll()  // accès public pour tester
                             .requestMatchers("/api/policies/**").permitAll()   // accès public pour tester

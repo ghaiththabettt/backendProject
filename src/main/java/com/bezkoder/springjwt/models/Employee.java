@@ -44,6 +44,8 @@ public class Employee extends User {
 
 
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore // <--- AJOUTER
+
     private List<EntreeDeTemps> entreeDeTempsList;
     
 

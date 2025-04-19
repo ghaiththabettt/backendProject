@@ -1,9 +1,10 @@
 package com.bezkoder.springjwt.controllers;
 
-
 import com.bezkoder.springjwt.dtos.HRModuleDtos.EmployeeDTO;
+import com.bezkoder.springjwt.dtos.HRModuleDtos.EmployeeListDTO;
 import com.bezkoder.springjwt.models.Employee;
 import com.bezkoder.springjwt.models.EEmployeePosition;
+import com.bezkoder.springjwt.models.HRModuleEntities.Department;
 import com.bezkoder.springjwt.models.User;
 import com.bezkoder.springjwt.payload.response.MessageResponse;
 import com.bezkoder.springjwt.repository.EmployeeRepository;
@@ -22,11 +23,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
@@ -311,16 +308,45 @@ public class EmployeeController {
                 .filter(emp -> emp.getDepartmentId() != null && emp.getDepartmentId().equals(id))
                 .collect(Collectors.toList());
     }
-    @GetMapping("/list")
+
+    @GetMapping("/list") // Endpoint pour la liste simplifiée
+    public ResponseEntity<List<EmployeeListDTO>> getEmployeeListForDropdown() {
+        List<EmployeeListDTO> employees = employeeService.getEmployeeList();
+        return ResponseEntity.ok(employees);
+    }
+
+    @GetMapping("/listemp")
+    @PreAuthorize("isAuthenticated()") // Or specific roles like 'ROLE_HR', 'ROLE_ADMIN'
     public ResponseEntity<List<Map<String, Object>>> getEmployeeList() {
-        List<Employee> employees = employeeRepository.findAll();
-        List<Map<String, Object>> employeeList = employees.stream().map(emp -> {
-            Map<String, Object> map = new HashMap<>();
-            map.put("id", emp.getId());
-            map.put("name", emp.getName());
-            map.put("lastName", emp.getLastName());
-            return map;
-        }).collect(Collectors.toList());
+        logger.info("Getting simplified employee list for dropdown");
+        List<Employee> employees = employeeRepository.findAll(); // Fetch all employees
+
+        List<Map<String, Object>> employeeList = employees.stream()
+                .filter(emp -> emp.getId() != null) // Basic check
+                .map(emp -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", emp.getId());
+
+                    // Construct fullName safely
+                    String firstName = emp.getName() != null ? emp.getName() : "";
+                    String lastName = emp.getLastName() != null ? emp.getLastName() : "";
+                    map.put("fullName", (firstName + " " + lastName).trim());
+
+                    // Get department name safely
+                    // Import com.bezkoder.springjwt.models.Department; if needed
+                    Department department = emp.getDepartment(); // Get the associated Department object
+                    String departmentName = (department != null && department.getDepartmentName() != null)
+                            ? department.getDepartmentName() // Extract the name
+                            : "N/A"; // Default if no department or name is null
+                    map.put("departmentName", departmentName); // Add it to the map
+
+                    return map;
+                })
+                // Sort alphabetically by fullName (optional but recommended)
+                // Import java.util.Comparator; if needed
+                .sorted(Comparator.comparing(map -> (String) map.get("fullName")))
+                .collect(Collectors.toList());
+
         return ResponseEntity.ok(employeeList);
     }
 

@@ -3,6 +3,7 @@ package com.bezkoder.springjwt.models;
 import java.util.HashSet;
 import java.util.Set;
 
+import com.bezkoder.springjwt.models.HRModuleEntities.Leave;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -62,6 +63,14 @@ public class User {
 
   public User() {
   }
+
+
+  // --- AJOUT DE LA RELATION INVERSE ---
+  @OneToMany(mappedBy = "actionedBy", // IMPORTANT: Doit correspondre au nom du champ dans l'entité Leave
+          cascade = CascadeType.ALL, // Optionnel: dépend si la suppression d'un User doit supprimer ses Leaves approuvées (généralement non)
+          orphanRemoval = false, // Généralement false pour ce type de relation
+          fetch = FetchType.LAZY) // LAZY est généralement préférable ici
+  private Set<Leave> approvedOrRejectedLeaves = new HashSet<>(); // Ou List<Leave>
 
   public User(String name, String lastName, String email, String password) {
     this.name = name;

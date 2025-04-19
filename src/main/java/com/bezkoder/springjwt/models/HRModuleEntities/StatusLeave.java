@@ -1,5 +1,7 @@
 package com.bezkoder.springjwt.models.HRModuleEntities;
 
 public enum StatusLeave {
-    Pending , Approved, Rejected
+    PENDING,    // Changed to uppercase convention
+    APPROVED,   // Changed to uppercase convention
+    REJECTED
 }
