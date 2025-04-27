@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -37,5 +38,6 @@ public interface EntreeDeTempsRepository extends JpaRepository<EntreeDeTemps, Lo
     @Query("SELECT COUNT(e) > 0 FROM EntreeDeTemps e WHERE e.employee.id = :employeeId AND FUNCTION('DATE', e.heureDebut) = FUNCTION('DATE', :date)")
     boolean existsByEmployeeIdAndDate(@Param("employeeId") Long employeeId, @Param("date") LocalDateTime date);
 
-
+    @Query("SELECT et FROM EntreeDeTemps et JOIN FETCH et.employee WHERE et.status IN :statuses")
+    List<EntreeDeTemps> findByStatusInWithEmployee(@Param("statuses") Collection<Status> statuses);
 }

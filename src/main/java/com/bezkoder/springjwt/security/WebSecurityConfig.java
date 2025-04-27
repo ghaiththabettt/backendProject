@@ -93,7 +93,7 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth ->
-                    auth.requestMatchers("/api/auth/**","/api/trainings/**", "/api/employee/**", "/api/policies/**","/api/perks/**","/api/expenses/**").permitAll()  // Authentification ouverte
+                    auth.requestMatchers("/api/auth/**","/api/trainings/**", "/api/employee/**", "/api/policies/**","/api/perks/**","/api/expenses/**","/api/Contract/**").permitAll()  // Authentification ouverte
                             .requestMatchers("/api/test/all").permitAll()
                             .requestMatchers("/api/trainings/**").permitAll()
                             .requestMatchers("/api/expenses/**").permitAll()  // accès public pour tester
@@ -116,7 +116,6 @@ public class WebSecurityConfig { // extends WebSecurityConfigurerAdapter {
                             .requestMatchers("/api/employees").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
 
                             .requestMatchers("/api/Department").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
-                            .requestMatchers("/api/Contract").hasAnyRole("ADMIN", "HR")  // Ajout d'un employé accessible à ADMIN et RH
                             .requestMatchers("/api/trainings/with-participants").permitAll()
                             .requestMatchers("/api/payrolls/**").permitAll()
 

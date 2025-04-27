@@ -16,10 +16,14 @@ import com.bezkoder.springjwt.repository.HRModuleRepository.PauseRepository;
 // import com.bezkoder.springjwt.repository.HRModuleRepository.TacheRepository;
 // import com.bezkoder.springjwt.models.HRModuleEntities.Tache; // Assurez-vous que l'entité Tache existe dans ce package
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.*;
@@ -28,6 +32,7 @@ import java.util.stream.Collectors;
 @Transactional // Annotation au niveau classe pour la simplicité, sinon mettez sur chaque méthode modifiant la DB
 @Service
 public class EntreeDeTempsService {
+    private static final Logger log = LoggerFactory.getLogger(EntreeDeTempsService.class);
 
     @Autowired private EntreeDeTempsRepository entreeDeTempsRepository;
     @Autowired private EmployeeRepository employeeRepository;
@@ -404,5 +409,94 @@ public class EntreeDeTempsService {
         entreeDeTempsRepository.deleteAll();
         return count + " entrées de temps supprimées.";
     }
+    /*
+    /* @Transactional(readOnly = true) // Lecture seule
+    public void logActiveTimeEntriesStatus() {
+        log.info("--- [SCHEDULED TASK] Début vérification pointages actifs à {} ---", LocalDateTime.now());
 
-} // Fin de la classe EntreeDeTempsService
+        // Statuts considérés comme actifs
+        List<Status> activeStatuses = Arrays.asList(Status.En_cours, Status.En_pause);
+
+        try {
+            // Récupérer tous les pointages actifs avec les infos de l'employé
+            List<EntreeDeTemps> activeEntries = entreeDeTempsRepository.findByStatusInWithEmployee(activeStatuses);
+
+            if (activeEntries.isEmpty()) {
+                log.info("--- [SCHEDULED TASK] Aucun pointage actif trouvé.");
+            } else {
+                log.info("--- [SCHEDULED TASK] {} pointage(s) actif(s) trouvé(s):", activeEntries.size());
+                LocalDateTime now = LocalDateTime.now(); // Obtenir l'heure actuelle une seule fois
+                for (EntreeDeTemps entry : activeEntries) {
+                    // Construction sûre des informations de l'employé
+                    String employeeInfo = "Employé ID N/A";
+                    if (entry.getEmployee() != null) {
+                        employeeInfo = "ID:" + entry.getEmployee().getId();
+                        // Ajout du nom/prénom si disponible et non null
+                        String firstName = entry.getEmployee().getName(); // Adaptez si les getters sont différents
+                        String lastName = entry.getEmployee().getLastName();
+                        if (firstName != null && !firstName.isBlank()) {
+                            employeeInfo += " (" + firstName;
+                            if (lastName != null && !lastName.isBlank()) {
+                                employeeInfo += " " + lastName;
+                            }
+                            employeeInfo += ")";
+                        } else if (lastName != null && !lastName.isBlank()) {
+                            employeeInfo += " (" + lastName + ")";
+                        }
+                    }
+
+
+                    // Calculer la durée écoulée depuis le début (gestion du cas où heureDebut est null)
+                    long elapsedMinutes = 0;
+                    if (entry.getHeureDebut() != null) {
+                        try { // Ajouter un try-catch pour robustesse si 'now' est antérieur à 'heureDebut' (anomalie)
+                            elapsedMinutes = Duration.between(entry.getHeureDebut(), now).toMinutes();
+                        } catch (Exception e) {
+                            log.warn("--- [SCHEDULED TASK] Problème de calcul de durée pour Pointage ID: {}", entry.getId(), e);
+                        }
+                    }
+
+                    // Log des détails pertinents
+                    log.info("  - Pointage ID: {}, Employé: {}, Statut: {}, Début: {}, Durée écoulée (approx): {} min",
+                            entry.getId(),
+                            employeeInfo,
+                            entry.getStatus(),
+                            entry.getHeureDebut() != null ? entry.getHeureDebut() : "N/A", // Afficher N/A si null
+                            elapsedMinutes >= 0 ? elapsedMinutes : "Calcul impossible" // Gérer durée négative si anomalie
+                    );
+
+                    // Loguer les détails de la pause si le statut est En_pause
+                    if (entry.getStatus() == Status.En_pause) {
+                        // Utiliser la relation déjà chargée (FetchType.LAZY est ok ici car on est dans une transaction)
+                        entry.getPauses().stream()
+                                .filter(p -> p.getFin() == null) // Trouver la pause active
+                                .findFirst()
+                                .ifPresentOrElse(
+                                        activePause -> {
+                                            long pauseElapsed = 0;
+                                            if (activePause.getDebut() != null) {
+                                                try {
+                                                    pauseElapsed = Duration.between(activePause.getDebut(), now).toMinutes();
+                                                } catch (Exception e) {
+                                                    log.warn("--- [SCHEDULED TASK] Problème de calcul de durée pour Pause ID: {}", activePause.getId(), e);
+                                                }
+                                            }
+                                            log.info("    -> En Pause (Type: {}, Début: {}, Durée pause actuelle: {} min)",
+                                                    activePause.getTypePause(),
+                                                    activePause.getDebut() != null ? activePause.getDebut() : "N/A",
+                                                    pauseElapsed >= 0 ? pauseElapsed : "Calcul impossible");
+                                        },
+                                        () -> log.warn("    -> Statut En_pause mais aucune pause active trouvée pour Pointage ID: {}", entry.getId()) // Log si anomalie
+                                );
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Loguer toute erreur survenant pendant l'exécution
+            log.error("--- [SCHEDULED TASK] Erreur durant la vérification des pointages actifs: {}", e.getMessage(), e);
+        } finally {
+            log.info("--- [SCHEDULED TASK] Fin vérification pointages actifs ---");
+        }
+    }
+*/
+}

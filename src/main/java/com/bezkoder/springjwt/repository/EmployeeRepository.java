@@ -18,4 +18,6 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     List<Employee> findByDepartment_DepartmentId(Long departmentId);
     @Query("SELECT new com.bezkoder.springjwt.dtos.HRModuleDtos.EmployeeListDTO(e.id, CONCAT(e.name, ' ', e.lastName)) FROM Employee e ORDER BY e.name ASC, e.lastName ASC")
     List<EmployeeListDTO> findEmployeeList();
+
+
 }

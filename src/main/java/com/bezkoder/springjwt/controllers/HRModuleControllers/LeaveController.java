@@ -3,17 +3,24 @@ package com.bezkoder.springjwt.controllers.HRModuleControllers;
 
 import com.bezkoder.springjwt.dtos.HRModuleDtos.LeaveDTO;
 import com.bezkoder.springjwt.HRModuleServices.LeaveService;
+import com.bezkoder.springjwt.models.HRModuleEntities.Leave;
+import com.bezkoder.springjwt.models.HRModuleEntities.LeaveType;
+import com.bezkoder.springjwt.repository.HRModuleRepository.LeaveRepository;
 import com.bezkoder.springjwt.security.services.UserDetailsImpl;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/leaves")
@@ -21,162 +28,224 @@ public class LeaveController {
 
     @Autowired
     private LeaveService leaveService;
+    private LeaveRepository leaveRepository;
     private Long getCurrentUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-
-        // Vérifie si l'authentification existe, est authentifiée et a un principal
-        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal() == null) {
+        if (authentication == null || !authentication.isAuthenticated() || authentication.getPrincipal() == null || !(authentication.getPrincipal() instanceof UserDetailsImpl)) {
             throw new AuthenticationCredentialsNotFoundException("User not authenticated or authentication details are unavailable.");
         }
-
-        Object principal = authentication.getPrincipal();
-
-        // Vérifie si le principal est une instance de votre UserDetailsImpl
-        if (principal instanceof UserDetailsImpl) {
-            UserDetailsImpl userDetails = (UserDetailsImpl) principal;
-            return userDetails.getId(); // Renvoie l'ID utilisateur depuis UserDetailsImpl
-        } else {
-            // Ce cas ne devrait idéalement pas se produire avec une authentification standard
-            // Loggez le type pour le débogage.
-            System.err.println("Unexpected principal type: " + principal.getClass().getName());
-            throw new AuthenticationCredentialsNotFoundException("Cannot determine user ID from principal type: " + principal.getClass().getName());
-        }
+        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        return userDetails.getId();
     }
 
-    // POST: Add a new leave request
-    // @PreAuthorize("isAuthenticated()") // Ou spécifiez les rôles
+    // --- MODIFIED POST (Ensure Employee ID is set correctly) ---
     @PostMapping
+    @PreAuthorize("isAuthenticated()") // Any authenticated user can request leave
     public ResponseEntity<?> addLeave(@RequestBody LeaveDTO leaveDTO) {
         try {
-            // Validation ou logique supplémentaire si nécessaire...
+            Long currentUserId = getCurrentUserId();
+            // Ensure the request is for the currently logged-in user or set it
             if (leaveDTO.getEmployeeId() == null) {
-                return ResponseEntity.badRequest().body("Employee ID must be provided in the request.");
+                leaveDTO.setEmployeeId(currentUserId); // Set ID if missing
+            } else if (!leaveDTO.getEmployeeId().equals(currentUserId)) {
+                // Prevent user A from creating a leave request for user B unless they are Admin/HR?
+                // For simplicity now, only allow self-creation. Adjust if needed.
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You can only create leave requests for yourself.");
             }
+
             LeaveDTO createdLeave = leaveService.addLeave(leaveDTO);
             return new ResponseEntity<>(createdLeave, HttpStatus.CREATED);
+        } catch (AuthenticationCredentialsNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (IllegalArgumentException | EntityNotFoundException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error adding leave: " + e.getMessage()); // Log l'erreur
-            e.printStackTrace(); // Pour le débogage
+            System.err.println("Error adding leave: " + e.getMessage()); e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred while adding leave.");
         }
     }
 
-    // GET: Retrieve all leave requests
-    // @PreAuthorize("hasRole('HR') or hasRole('ADMIN')")
+    // --- GET All (Keep as is - for Admin/HR) ---
     @GetMapping
+    @PreAuthorize("hasRole('ADMIN') or hasRole('HR')")
     public ResponseEntity<List<LeaveDTO>> getAllLeaves() {
-        // Ajoutez une gestion d'erreurs si nécessaire
+        // ... (keep existing implementation using leaveService.getAllLeaves()) ...
         try {
             List<LeaveDTO> leaves = leaveService.getAllLeaves();
             return new ResponseEntity<>(leaves, HttpStatus.OK);
         } catch (Exception e) {
-            System.err.println("Error getting all leaves: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null); // Ou une réponse d'erreur
+            System.err.println("Error getting all leaves: " + e.getMessage()); e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
         }
     }
 
-    // GET: Retrieve a specific leave request by ID
-    // @PreAuthorize("isAuthenticated()") // Ajoutez une logique d'autorisation plus fine ici
+    // --- MODIFIED GET by ID (Pass current user ID for Auth Check in Service) ---
     @GetMapping("/{leaveId}")
+    @PreAuthorize("isAuthenticated()") // Check authorization in service layer
     public ResponseEntity<?> getLeaveById(@PathVariable Long leaveId) {
         try {
-            LeaveDTO leave = leaveService.getLeaveById(leaveId);
-            // Ajoutez ici une vérification d'autorisation (l'utilisateur est le propriétaire ou HR/Admin)
+            Long currentUserId = getCurrentUserId();
+            // Service layer will check if currentUserId owns the leave or is Admin/HR
+            LeaveDTO leave = leaveService.getLeaveById(leaveId, currentUserId); // Pass current user ID
             return new ResponseEntity<>(leave, HttpStatus.OK);
+        } catch (AuthenticationCredentialsNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error getting leave by ID: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error getting leave by ID " + leaveId + ": " + e.getMessage()); e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
         }
     }
 
-    // PUT: Update an existing leave request
-    // @PreAuthorize("isAuthenticated()") // Ajoutez une logique d'autorisation plus fine ici
+
+    // --- NEW Endpoint: Get Leaves By Employee ID ---
+    /**
+     * GET: Retrieve all leave requests for a specific employee.
+     * Accessible only by the employee themselves or by Admin/HR.
+     */
+    @GetMapping("/employee/{employeeId}")
+    @PreAuthorize("isAuthenticated()") // Check specific authorization below
+    public ResponseEntity<?> getLeavesByEmployeeId(@PathVariable Long employeeId) {
+        try {
+            Long currentUserId = getCurrentUserId();
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            boolean isAdminOrHr = authentication.getAuthorities().stream()
+                    .anyMatch(grantedAuthority -> grantedAuthority.getAuthority().equals("ROLE_ADMIN") ||
+                            grantedAuthority.getAuthority().equals("ROLE_HR"));
+
+            // Authorization Check: Allow if the requested ID matches the logged-in user OR if the user is Admin/HR
+            if (!currentUserId.equals(employeeId) && !isAdminOrHr) {
+                // Log attempt for security audit?
+                System.out.println("Authorization failed: User " + currentUserId + " tried to access leaves for employee " + employeeId);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You are not authorized to view these leave requests.");
+            }
+
+            // Delegate to service, no need for user ID here as auth is done
+            List<LeaveDTO> leaves = leaveService.getLeavesByEmployeeId(employeeId);
+            return ResponseEntity.ok(leaves);
+        } catch (AuthenticationCredentialsNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
+        } catch (EntityNotFoundException e) {
+            // This might mean the employee doesn't exist
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Employee not found or has no leave requests.");
+        } catch (Exception e) {
+            System.err.println("Error getting leaves for employee " + employeeId + ": " + e.getMessage()); e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
+        }
+    }
+
+    // --- NEW Endpoint: Get Leave Types ---
+    /**
+     * GET: Retrieve available leave types.
+     */
+    @GetMapping("/types")
+    @PreAuthorize("isAuthenticated()") // All authenticated users can see types
+    public ResponseEntity<List<String>> getLeaveTypes() {
+        try {
+            // Get enum names as strings
+            List<String> types = Arrays.stream(LeaveType.values())
+                    .map(Enum::name) // Returns enum constant name (e.g., "ANNUAL")
+                    .collect(Collectors.toList());
+            return ResponseEntity.ok(types);
+        } catch (Exception e) {
+            System.err.println("Error getting leave types: " + e.getMessage()); e.printStackTrace();
+            // Return an empty list or error status
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(List.of());
+        }
+    }
+
+
+    // --- MODIFIED PUT (Pass current user ID for Auth Check in Service) ---
+    /**
+     * PUT: Update an existing leave request.
+     * Only the employee who owns the request can update it, and only if it's PENDING.
+     */
     @PutMapping("/{leaveId}")
+    @PreAuthorize("isAuthenticated()") // Check ownership in service
     public ResponseEntity<?> updateLeave(@PathVariable Long leaveId, @RequestBody LeaveDTO leaveDTO) {
         try {
+            // Basic ID consistency check
             if (leaveDTO.getLeaveId() != null && !leaveDTO.getLeaveId().equals(leaveId)) {
                 return ResponseEntity.badRequest().body("Leave ID in path does not match ID in request body.");
             }
-            leaveDTO.setLeaveId(leaveId);
-            // Ajoutez ici des vérifications d'autorisation
-            LeaveDTO updatedLeave = leaveService.updateLeave(leaveId, leaveDTO);
+            // Ensure the leaveId from path is used if body ID is null
+            if(leaveDTO.getLeaveId() == null) {
+                leaveDTO.setLeaveId(leaveId);
+            }
+
+            Long currentUserId = getCurrentUserId();
+            // Service layer handles authorization (ownership & PENDING status)
+            LeaveDTO updatedLeave = leaveService.updateLeave(leaveId, leaveDTO, currentUserId);
             return new ResponseEntity<>(updatedLeave, HttpStatus.OK);
+
+        } catch (AuthenticationCredentialsNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (IllegalStateException | IllegalArgumentException e) {
+        } catch (IllegalStateException | IllegalArgumentException e) { // Catch validation/state errors
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error updating leave: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error updating leave " + leaveId + ": " + e.getMessage()); e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
         }
     }
 
-    // DELETE: Delete a leave request
-    // @PreAuthorize("isAuthenticated()") // Ajoutez une logique d'autorisation plus fine ici
+    // --- MODIFIED DELETE (Pass current user ID for Auth Check in Service) ---
+    /**
+     * DELETE: Delete a leave request.
+     * Only the employee who owns the request can delete it, and only if it's PENDING.
+     */
     @DeleteMapping("/{leaveId}")
+    @PreAuthorize("isAuthenticated()") // Check ownership in service
     public ResponseEntity<?> deleteLeave(@PathVariable Long leaveId) {
         try {
-            // Ajoutez ici des vérifications d'autorisation
-            leaveService.deleteLeave(leaveId);
-            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+            Long currentUserId = getCurrentUserId();
+            // Service layer handles authorization (ownership & PENDING status)
+            leaveService.deleteLeave(leaveId, currentUserId);
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT); // Success, no content
+
+        } catch (AuthenticationCredentialsNotFoundException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        } catch (IllegalStateException e) {
+        } catch (IllegalStateException e) { // Catch state errors (e.g., not PENDING)
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error deleting leave: " + e.getMessage());
-            e.printStackTrace();
+            System.err.println("Error deleting leave " + leaveId + ": " + e.getMessage()); e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
         }
     }
 
-    // PUT: Approve a leave request
-    // @PreAuthorize("hasRole('HR') or hasRole('ADMIN')")
+    // --- Admin/HR Actions (Approve/Reject) - Keep As Is or ensure service call is correct ---
     @PutMapping("/{leaveId}/approve")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('HR')")
     public ResponseEntity<?> approveLeave(@PathVariable Long leaveId) {
+        // ... (existing implementation should be fine if it calls service correctly) ...
         try {
-            Long actionUserId = getCurrentUserId(); // Obtient l'ID de l'utilisateur authentifié
+            Long actionUserId = getCurrentUserId();
             LeaveDTO approvedLeave = leaveService.approveLeave(leaveId, actionUserId);
             return new ResponseEntity<>(approvedLeave, HttpStatus.OK);
-        } catch (AuthenticationCredentialsNotFoundException e) { // Gère l'erreur d'authentification
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (EntityNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage()); // Leave ou User non trouvé
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage()); // Ex: statut incorrect
-        } catch (Exception e) {
-            System.err.println("Error approving leave: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
-        }
+        } catch (AuthenticationCredentialsNotFoundException e) { return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage()); }
+        catch (EntityNotFoundException e) { return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage()); }
+        catch (IllegalStateException e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+        catch (Exception e) { System.err.println("Error approving leave: " + e.getMessage()); e.printStackTrace(); return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred."); }
     }
 
-    // PUT: Reject a leave request
-    // @PreAuthorize("hasRole('HR') or hasRole('ADMIN')")
     @PutMapping("/{leaveId}/reject")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('HR')")
     public ResponseEntity<?> rejectLeave(@PathVariable Long leaveId) {
+        // ... (existing implementation should be fine if it calls service correctly) ...
         try {
-            Long actionUserId = getCurrentUserId(); // Obtient l'ID de l'utilisateur authentifié
+            Long actionUserId = getCurrentUserId();
             LeaveDTO rejectedLeave = leaveService.rejectLeave(leaveId, actionUserId);
             return new ResponseEntity<>(rejectedLeave, HttpStatus.OK);
-        } catch (AuthenticationCredentialsNotFoundException e) { // Gère l'erreur d'authentification
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
-        } catch (EntityNotFoundException e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage()); // Leave ou User non trouvé
-        } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage()); // Ex: statut incorrect
-        } catch (Exception e) {
-            System.err.println("Error rejecting leave: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred.");
-        }
+        } catch (AuthenticationCredentialsNotFoundException e) { return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage()); }
+        catch (EntityNotFoundException e) { return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage()); }
+        catch (IllegalStateException e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+        catch (Exception e) { System.err.println("Error rejecting leave: " + e.getMessage()); e.printStackTrace(); return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred."); }
     }
+
+
 }
 

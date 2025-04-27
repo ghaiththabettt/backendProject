@@ -246,56 +246,76 @@ public class AuthController {
 
 
     @PostMapping("/admin/signup")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('ROLE_HR')")
     public ResponseEntity<?> registerEmployee(@Valid @RequestBody EmployeeSignupRequest signUpRequest) {
+        // Check if email is already in use
         if (userRepository.existsByEmail(signUpRequest.getEmail())) {
             return ResponseEntity
                     .badRequest()
                     .body(new MessageResponse("Error: Email is already in use!"));
         }
 
-        // Récupérer les entités associées
+        // Retrieve the Department entity based on the provided departmentId
         Department department = null;
+        // departmentId is mandatory in your frontend, but backend check is still good practice
         if (signUpRequest.getDepartmentId() != null) {
             department = departmentRepository.findById(signUpRequest.getDepartmentId())
-                    .orElseThrow(() -> new RuntimeException("Département introuvable"));
+                    .orElseThrow(() -> new RuntimeException("Département introuvable avec ID: " + signUpRequest.getDepartmentId()));
+            // Added ID to error message for clarity
         }
+        // Note: If departmentId is mandatory on frontend AND backend DTO validation (@NotNull),
+        // you might not need the null check here, but the findById().orElseThrow() is still needed.
 
-        Contract contract = null;
-        if (signUpRequest.getContractId() != null) {
-            contract = contractRepository.findById(signUpRequest.getContractId())
-                    .orElseThrow(() -> new RuntimeException("Contrat introuvable"));
-        }
 
-        // Convertir la chaîne en enum pour position
+        // *** REMOVE the logic related to the single contract field ***
+        // The single 'Contract contract' field has been removed from the Employee entity.
+        // A contract should be assigned separately via the /api/Contract endpoint.
+
+        // Remove these lines if they were present and using the removed 'contract' field:
+        // Contract contract = null;
+        // if (signUpRequest.getContractId() != null) {
+        //     contract = contractRepository.findById(signUpRequest.getContractId())
+        //             .orElseThrow(() -> new RuntimeException("Contrat introuvable"));
+        // }
+        // employee.setContract(contract); // <--- THIS LINE MUST BE REMOVED
+
+
+        // Convert the position string from DTO to enum
         EEmployeePosition positionEnum;
         try {
-            positionEnum = EEmployeePosition.valueOf(String.valueOf(signUpRequest.getPosition()));
+            positionEnum = EEmployeePosition.valueOf(String.valueOf(signUpRequest.getPosition())); // Assume position is already string in DTO
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(new MessageResponse("Error: Position invalide!"));
+            return ResponseEntity.badRequest().body(new MessageResponse("Error: Invalid position value: " + signUpRequest.getPosition()));
+            // Added value to error message
         }
 
-        // Créer l'employé
+        // Create the Employee entity
         Employee employee = new Employee(
                 signUpRequest.getName(),
                 signUpRequest.getLastName(),
                 signUpRequest.getEmail(),
-                encoder.encode(signUpRequest.getPassword()),
+                encoder.encode(signUpRequest.getPassword()), // Encode password
                 signUpRequest.getSalary(),
-                signUpRequest.getHireDate(),
+                signUpRequest.getHireDate(), // Assumes HireDate is LocalDate in DTO
                 positionEnum
         );
+
+        // Set optional fields and relationships
         employee.setAddress(signUpRequest.getAddress());
         employee.setPhoneNumber(signUpRequest.getPhoneNumber());
         employee.setDepartment(department);
-        employee.setContract(contract);
-        employee.setDateOfBirth(signUpRequest.getDateOfBirth());
-        employee.setUserType(EUserType.ROLE_EMPLOYEE);
+        // The contracts list will be empty by default for a new Employee entity.
+        // Contracts will be added later via the contract creation endpoint.
+        employee.setDateOfBirth(signUpRequest.getDateOfBirth()); // Assumes DateOfBirth is Date in DTO
+        employee.setUserType(EUserType.ROLE_EMPLOYEE); // Explicitly set user type for this endpoint
 
+        // Save the Employee entity
         employeeRepository.save(employee);
 
+        // Return a success message
         return ResponseEntity.ok(new MessageResponse("Employee registered successfully!"));
     }
+
 
 
 }

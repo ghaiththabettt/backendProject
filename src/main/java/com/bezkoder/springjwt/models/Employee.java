@@ -44,10 +44,8 @@ public class Employee extends User {
 
 
     @OneToMany(mappedBy = "employee", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonIgnore // <--- AJOUTER
-
     private List<EntreeDeTemps> entreeDeTempsList;
-    
+
 
     @ManyToOne
     @JoinColumn(name = "department_id")
@@ -95,7 +93,7 @@ public class Employee extends User {
         this.position = position;
     }
 
-    }
+}
 
 
 

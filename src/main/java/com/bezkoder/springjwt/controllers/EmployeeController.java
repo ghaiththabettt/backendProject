@@ -4,6 +4,7 @@ import com.bezkoder.springjwt.dtos.HRModuleDtos.EmployeeDTO;
 import com.bezkoder.springjwt.dtos.HRModuleDtos.EmployeeListDTO;
 import com.bezkoder.springjwt.models.Employee;
 import com.bezkoder.springjwt.models.EEmployeePosition;
+import com.bezkoder.springjwt.models.HRModuleEntities.Contract;
 import com.bezkoder.springjwt.models.HRModuleEntities.Department;
 import com.bezkoder.springjwt.models.User;
 import com.bezkoder.springjwt.payload.response.MessageResponse;
@@ -21,6 +22,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -39,9 +41,12 @@ public class EmployeeController {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    PasswordEncoder encoder;
     public EmployeeController(EmployeeService employeeService) {
         this.employeeService = employeeService;
     }
+
 
     @GetMapping("/position/{userId}")
     //@PreAuthorize("hasRole('USER') or hasRole('EMPLOYEE') or hasRole('ADMIN')")
@@ -77,6 +82,7 @@ public class EmployeeController {
                     .body(new MessageResponse("Error: Employee details not found!"));
         }
     }
+
 
     @GetMapping("/my-position")
     //@PreAuthorize("hasRole('EMPLOYEE') or hasRole('ADMIN')")
@@ -163,52 +169,88 @@ public class EmployeeController {
 
 
     @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')  or hasRole('ROLE_HR')")
-    public ResponseEntity<?> getAllEmployees() {
+//@PreAuthorize("hasRole('ADMIN')  or hasRole('ROLE_HR')") // Add @PreAuthorize based on your security needs
+    public ResponseEntity<List<Map<String, Object>>> getAllEmployees() { // Explicitly type the return
         logger.info("Getting all employees with department & contract info");
 
-        List<Employee> employees = employeeRepository.findAll();
+        List<Employee> employees = employeeRepository.findAll(); // Fetch all Employee entities
         List<Map<String, Object>> employeeList = new ArrayList<>();
 
         for (Employee employee : employees) {
             Map<String, Object> employeeMap = new HashMap<>();
 
-            // Champs existants
-            employeeMap.put("id", employee.getId());
-            employeeMap.put("email", employee.getEmail());
+            // Basic Employee fields from the User part and Employee part
+            employeeMap.put("id", employee.getId()); // Inherited from User
+            employeeMap.put("name", employee.getName()); // Inherited from User
+            employeeMap.put("lastName", employee.getLastName()); // Inherited from User
+            employeeMap.put("email", employee.getEmail()); // Inherited from User
             employeeMap.put("position", employee.getPosition() != null
                     ? employee.getPosition().name()
-                    : null);
+                    : null); // From Employee
+            employeeMap.put("salary", employee.getSalary()); // From Employee
+            employeeMap.put("hireDate", employee.getHireDate()); // From Employee (LocalDate)
+            employeeMap.put("dateOfBirth", employee.getDateOfBirth()); // From Employee (Date)
+            employeeMap.put("address", employee.getAddress()); // Inherited or Employee field
+            employeeMap.put("phoneNumber", employee.getPhoneNumber()); // Inherited or Employee field
 
-            // Ajout du departmentId (ou null si pas de department)
+
+            // Add Department information (using the ManyToOne Department relationship)
             if (employee.getDepartment() != null) {
                 employeeMap.put("departmentId", employee.getDepartment().getDepartmentId());
+                employeeMap.put("departmentName", employee.getDepartment().getDepartmentName()); // Assuming Department has a name field
             } else {
                 employeeMap.put("departmentId", null);
+                employeeMap.put("departmentName", null);
             }
 
-            // Ajout du contractId (ou null)
-            // Attention : vous avez un champ "contract" simple + un champ "contracts" (List).
-            // Si vous voulez juste le "contract" ManyToOne, on utilise getContract().
-            if (employee.getContract() != null) {
-                employeeMap.put("contractId", employee.getContract().getContractId());
+            // *** Add Contract information (using the OneToMany contracts list) ***
+            // We'll find the latest contract based on startDate for demonstration
+            if (employee.getContracts() != null && !employee.getContracts().isEmpty()) {
+                // Find the contract with the latest start date
+                Optional<Contract> latestContractOptional = employee.getContracts().stream()
+                        .sorted(Comparator.comparing(Contract::getStartDate).reversed()) // Sort descending by start date
+                        .findFirst(); // Get the first element (latest after sorting)
+
+                if (latestContractOptional.isPresent()) {
+                    Contract latestContract = latestContractOptional.get();
+                    employeeMap.put("latestContractId", latestContract.getContractId());
+                    employeeMap.put("latestContractType", latestContract.getContractType() != null ? latestContract.getContractType().name() : null); // Assuming ContractType is an enum
+                    employeeMap.put("latestContractStartDate", latestContract.getStartDate()); // LocalDate
+                    employeeMap.put("latestContractEndDate", latestContract.getEndDate()); // LocalDate (can be null)
+                    employeeMap.put("latestContractReference", latestContract.getReference()); // String
+                    employeeMap.put("latestContractStatus", latestContract.getStatut() != null ? latestContract.getStatut().name() : null); // Assuming ContractStatus is an enum
+                } else {
+                    // This else might not be strictly necessary if the outer check is !isEmpty()
+                    // but good for clarity if sorting/finding fails unexpectedly
+                    employeeMap.put("latestContractId", null);
+                    employeeMap.put("latestContractType", null);
+                    employeeMap.put("latestContractStartDate", null);
+                    employeeMap.put("latestContractEndDate", null);
+                    employeeMap.put("latestContractReference", null);
+                    employeeMap.put("latestContractStatus", null);
+                }
+
+                // You could also add a count of contracts
+                employeeMap.put("contractCount", employee.getContracts().size());
+
             } else {
-                employeeMap.put("contractId", null);
+                // Employee has no contracts
+                employeeMap.put("latestContractId", null);
+                employeeMap.put("latestContractType", null);
+                employeeMap.put("latestContractStartDate", null);
+                employeeMap.put("latestContractEndDate", null);
+                employeeMap.put("latestContractReference", null);
+                employeeMap.put("latestContractStatus", null);
+                employeeMap.put("contractCount", 0);
             }
+            // *** End of Contract information logic ***
 
-            // Ajout du name, lastName, dateOfBirth, hireDate, etc.
-            employeeMap.put("name", employee.getName());
-            employeeMap.put("lastName", employee.getLastName());
-            employeeMap.put("dateOfBirth", employee.getDateOfBirth());
-            employeeMap.put("hireDate", employee.getHireDate());
-            // salary, phoneNumber... (à vous de voir si besoin)
 
             employeeList.add(employeeMap);
         }
 
-        return ResponseEntity.ok(employeeList);
+        return ResponseEntity.ok(employeeList); // Return the list of maps
     }
-
 
 
     @GetMapping("/position-by-email/{email}")
@@ -316,7 +358,7 @@ public class EmployeeController {
     }
 
     @GetMapping("/listemp")
-    @PreAuthorize("isAuthenticated()") // Or specific roles like 'ROLE_HR', 'ROLE_ADMIN'
+   // @PreAuthorize("isAuthenticated()") // Or specific roles like 'ROLE_HR', 'ROLE_ADMIN'
     public ResponseEntity<List<Map<String, Object>>> getEmployeeList() {
         logger.info("Getting simplified employee list for dropdown");
         List<Employee> employees = employeeRepository.findAll(); // Fetch all employees
