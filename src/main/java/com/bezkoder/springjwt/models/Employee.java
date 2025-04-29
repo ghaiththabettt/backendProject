@@ -13,10 +13,8 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.LocalDate;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
+
 @Getter
 @Setter
 @Entity
@@ -77,6 +75,28 @@ public class Employee extends User {
 
     @OneToMany(mappedBy = "employee", cascade = CascadeType.REMOVE, orphanRemoval = true)
     private List<Leave> leave;
+
+    @OneToMany(
+            mappedBy = "employee", // Doit correspondre au nom du champ dans Task
+            cascade = CascadeType.ALL,
+            orphanRemoval = true,
+            fetch = FetchType.LAZY // LAZY est souvent préférable pour les OneToMany
+    )
+    @JsonIgnore // Important pour éviter les boucles JSON
+    private List<Task> tasks = new ArrayList<>(); // Initialiser la liste est crucial
+
+
+
+
+     public void addTask(Task task) {
+        tasks.add(task);
+        task.setEmployee(this);
+    }
+
+    public void removeTask(Task task) {
+        tasks.remove(task);
+        task.setEmployee(null);
+    }
 
     public Employee(String name,
                     String lastName,

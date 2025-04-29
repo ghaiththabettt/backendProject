@@ -22,6 +22,9 @@ public class Leave {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long leaveId;
 
+    @Column(name = "predicted_leave_type")
+    private String predictedLeaveType;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee; // Links to the employee making the request
