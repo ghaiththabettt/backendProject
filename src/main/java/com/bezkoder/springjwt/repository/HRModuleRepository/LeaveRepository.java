@@ -47,4 +47,7 @@ public interface LeaveRepository extends JpaRepository<Leave, Long> {
 
     List<Leave> findByStatusLeave(StatusLeave statusLeave);
 
+
+    @Query("SELECT l.sentiment, l.requestedOn FROM Leave l WHERE l.sentiment IS NOT NULL AND l.requestedOn IS NOT NULL")
+    List<Object[]> findAllSentimentsAndDates(); //
 }

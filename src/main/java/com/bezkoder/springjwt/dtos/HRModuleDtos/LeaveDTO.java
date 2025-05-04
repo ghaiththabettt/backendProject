@@ -9,6 +9,8 @@ import java.time.LocalDate;
 
 @Data // Lombok annotation for getters, setters, toString, etc.
 public class LeaveDTO {
+    private String sentiment;
+
     private Long leaveId;           // Corresponds to 'id' in Angular Model
     private Long employeeId;        // ID of the employee
     private String employeeName;    // Derived: Employee's full name
@@ -24,6 +26,7 @@ public class LeaveDTO {
     private String reason;
     private String note;
     private LocalDate requestedOn;  // Date as LocalDate ("yyyy-MM-dd")
+    private String predictionMessage;
 
     private Long actionedById;      // ID of the user who approved/rejected (was approvedById)
     private String actionedByName;  // Name of the user who approved/rejected (was approvedByName)

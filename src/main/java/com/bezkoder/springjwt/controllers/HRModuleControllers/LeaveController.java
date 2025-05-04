@@ -3,6 +3,7 @@ package com.bezkoder.springjwt.controllers.HRModuleControllers;
 
 import com.bezkoder.springjwt.dtos.HRModuleDtos.LeaveDTO;
 import com.bezkoder.springjwt.HRModuleServices.LeaveService;
+import com.bezkoder.springjwt.dtos.HRModuleDtos.SentimentDashboardDTO;
 import com.bezkoder.springjwt.models.HRModuleEntities.Leave;
 import com.bezkoder.springjwt.models.HRModuleEntities.LeaveType;
 import com.bezkoder.springjwt.repository.HRModuleRepository.LeaveRepository;
@@ -17,6 +18,7 @@ import org.springframework.security.authentication.AuthenticationCredentialsNotF
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import com.bezkoder.springjwt.payload.response.LeaveCreationResponse;
 
 import java.util.Arrays;
 import java.util.List;
@@ -44,27 +46,52 @@ public class LeaveController {
     public ResponseEntity<?> addLeave(@RequestBody LeaveDTO leaveDTO) {
         try {
             Long currentUserId = getCurrentUserId();
-            // Ensure the request is for the currently logged-in user or set it
+
+            // Vérifie que l'utilisateur demande un congé pour lui-même
             if (leaveDTO.getEmployeeId() == null) {
-                leaveDTO.setEmployeeId(currentUserId); // Set ID if missing
+                leaveDTO.setEmployeeId(currentUserId);
             } else if (!leaveDTO.getEmployeeId().equals(currentUserId)) {
-                // Prevent user A from creating a leave request for user B unless they are Admin/HR?
-                // For simplicity now, only allow self-creation. Adjust if needed.
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body("You can only create leave requests for yourself.");
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body("You can only create leave requests for yourself.");
             }
 
+            // Création du congé
             LeaveDTO createdLeave = leaveService.addLeave(leaveDTO);
-            return new ResponseEntity<>(createdLeave, HttpStatus.CREATED);
+
+            // Message de prédiction
+            String message = (leaveDTO.getLeaveType() != null)
+                    ? "Predicted leave type: " + leaveDTO.getLeaveType()
+                    : "No prediction was made.";
+
+            LeaveCreationResponse response = new LeaveCreationResponse(createdLeave, message);
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
+
         } catch (AuthenticationCredentialsNotFoundException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         } catch (IllegalArgumentException | EntityNotFoundException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            System.err.println("Error adding leave: " + e.getMessage()); e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("An internal error occurred while adding leave.");
+            System.err.println("Error adding leave: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An internal error occurred while adding leave.");
         }
     }
 
+    @GetMapping("/dashboard/sentiments")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('HR')") // Ajuster les rôles
+    public ResponseEntity<?> getLeaveSentimentDashboardData() {
+        try {
+            SentimentDashboardDTO dashboardData = leaveService.getSentimentDashboardData();
+            return ResponseEntity.ok(dashboardData);
+        } catch (Exception e) {
+            // Loguer l'erreur e
+            System.err.println("Error fetching sentiment dashboard data: " + e.getMessage());
+            e.printStackTrace();
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An internal error occurred while fetching dashboard data.");
+        }
+    }
     // --- GET All (Keep as is - for Admin/HR) ---
     @GetMapping
     @PreAuthorize("hasRole('ADMIN') or hasRole('HR')")

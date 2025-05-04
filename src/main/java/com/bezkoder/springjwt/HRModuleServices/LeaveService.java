@@ -1,9 +1,9 @@
 package com.bezkoder.springjwt.HRModuleServices;
+import com.bezkoder.springjwt.dtos.HRModuleDtos.SentimentDashboardDTO;
+import com.bezkoder.springjwt.payload.response.PredictionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
-import java.time.LocalDateTime;
-import java.time.LocalDateTime;
 // --- Keep existing imports ---
 import com.bezkoder.springjwt.dtos.HRModuleDtos.LeaveDTO;
 import com.bezkoder.springjwt.models.HRModuleEntities.DurationType;
@@ -25,12 +25,20 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
+import com.bezkoder.springjwt.dtos.HRModuleDtos.SentimentDashboardDTO; // Importer le nouveau DTO
+import com.bezkoder.springjwt.dtos.HRModuleDtos.MotivationTrendPoint; // Importer le nouveau DTO interne
 
+import java.time.Month; // Importer Month
+import java.time.YearMonth; // Importer YearMonth
+import java.util.ArrayList; // Importer ArrayList
+import java.util.HashMap; // Importer HashMap
+import java.util.Map; // Importer Map
+import java.util.stream.Collectors; // Importer Collectors
+import java.time.format.DateTimeFormatter;
 
 @Service
 public class LeaveService {
@@ -44,7 +52,10 @@ public class LeaveService {
 
     @Autowired
     private UserRepository userRepository;
-
+    @Autowired
+    private CongePredictionService congePredictionService;
+    @Autowired
+    private CongePredictionService predictionService;
     // --- Helper: Check if user is Admin or HR (Keep existing or add if missing) ---
     private boolean isAdminOrHr(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
@@ -81,6 +92,7 @@ public class LeaveService {
         leave.setNumberOfDays(dto.getNumberOfDays()); // Frontend might calculate this or backend recalculates
         leave.setReason(dto.getReason());
         leave.setNote(dto.getNote());
+        leave.setSentiment(dto.getSentiment());
 
         // System set fields only on creation
         if (leave.getLeaveId() == null) {
@@ -107,6 +119,7 @@ public class LeaveService {
         dto.setNote(leave.getNote());
         dto.setRequestedOn(leave.getRequestedOn());
         dto.setActionDate(leave.getActionDate());
+        dto.setSentiment(leave.getSentiment());
 
         if (leave.getEmployee() != null) {
             dto.setEmployeeId(leave.getEmployee().getId());
@@ -160,11 +173,45 @@ public class LeaveService {
 
     @Transactional
     public LeaveDTO addLeave(LeaveDTO leaveDTO) {
-        // Validation/setting of Employee ID happens in Controller
-        Leave leave = convertToEntity(leaveDTO, null);
-        Leave savedLeave = leaveRepository.save(leave);
-        return convertToDTO(savedLeave);
+        try {
+            // 🔁 Appeler la prédiction si un "reason" est fourni
+            if (leaveDTO.getReason() != null && !leaveDTO.getReason().isBlank()) {
+                PredictionResponse prediction = congePredictionService.predictTypeCongeAndSentiment(leaveDTO.getReason());
+
+                if (prediction != null) {
+                    System.out.println("✅ Réponse Flask : " +
+                            "Type = " + prediction.getType_conge_prevu() + ", " +
+                            "Sentiment = " + prediction.getSentiment() + ", " +
+                            "Interprétation = " + prediction.getInterpretation());
+
+                    // 🧠 Si type_conge_prevu est nul ou vide, ne pas écraser
+                    if (leaveDTO.getLeaveType() == null || leaveDTO.getLeaveType().isBlank()) {
+                        leaveDTO.setLeaveType(prediction.getType_conge_prevu());
+                    }
+
+                    // ✅ Enregistrer l'interprétation dans le champ sentiment
+                    leaveDTO.setSentiment(prediction.getInterpretation());
+                } else {
+                    System.err.println("❌ Erreur : réponse de prédiction nulle.");
+                }
+            }
+
+            // Création de l'entité Leave
+            Leave leave = convertToEntity(leaveDTO, null);
+            Leave savedLeave = leaveRepository.save(leave);
+            System.out.println("✅ Congé enregistré avec ID : " + savedLeave.getLeaveId());
+
+            return convertToDTO(savedLeave);
+
+        } catch (Exception e) {
+            System.err.println("❌ Exception lors de l'enregistrement du congé : " + e.getMessage());
+            e.printStackTrace();
+            throw e; // Remonter l'exception pour qu'elle apparaisse dans les logs
+        }
     }
+
+
+
 
     // For Admin/HR - Uses JOIN FETCH from repo
     public List<LeaveDTO> getAllLeaves() {
@@ -312,7 +359,88 @@ public class LeaveService {
         return convertToDTO(savedLeave);
     }
 
-  //  @Scheduled(cron = "0 */ // 2 * * * *")
+
+
+    @Transactional(readOnly = true) // Transaction pour lire les données
+    public SentimentDashboardDTO getSentimentDashboardData() {
+        log.info("Fetching sentiment dashboard data...");
+
+        // Utiliser la méthode optimisée si elle existe, sinon charger toutes les entités
+        // List<Object[]> sentimentData = leaveRepository.findAllSentimentsAndDates();
+        // Ou charger toutes les entités (moins performant si beaucoup de données)
+        List<Leave> allLeaves = leaveRepository.findAll(); // Assurez-vous que 'sentiment' est chargé (FetchType.EAGER ou via query)
+
+        // Filtrer ceux qui ont un sentiment enregistré
+        List<Leave> leavesWithSentiment = allLeaves.stream()
+                .filter(leave -> leave.getSentiment() != null && !leave.getSentiment().isBlank() && leave.getRequestedOn() != null)
+                .collect(Collectors.toList());
+
+        log.debug("Found {} leaves with sentiment data.", leavesWithSentiment.size());
+
+        // 1. Calculer les comptes par sentiment (pour le Pie Chart)
+        Map<String, Long> sentimentCounts = leavesWithSentiment.stream()
+                .collect(Collectors.groupingBy(Leave::getSentiment, Collectors.counting()));
+
+        log.debug("Sentiment counts calculated: {}", sentimentCounts);
+
+        // 2. Calculer la tendance de motivation (pour le Line Chart)
+        // Regrouper par mois (Année-Mois)
+        Map<YearMonth, List<Leave>> leavesByMonth = leavesWithSentiment.stream()
+                .collect(Collectors.groupingBy(leave -> YearMonth.from(leave.getRequestedOn())));
+
+        // Calculer un score moyen par mois
+        List<MotivationTrendPoint> motivationTrend = new ArrayList<>();
+        leavesByMonth.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey()) // Trier par mois
+                .forEach(entry -> {
+                    YearMonth month = entry.getKey();
+                    List<Leave> monthlyLeaves = entry.getValue();
+                    double monthlyScore = calculateMonthlyMotivationScore(monthlyLeaves);
+                    // Formatter le mois en "YYYY-MM" pour ApexCharts
+                    String periodLabel = month.format(DateTimeFormatter.ofPattern("yyyy-MM"));
+                    motivationTrend.add(new MotivationTrendPoint(periodLabel, monthlyScore));
+                });
+
+        log.debug("Motivation trend calculated with {} points.", motivationTrend.size());
+
+        return new SentimentDashboardDTO(sentimentCounts, motivationTrend);
+    }
+
+    /**
+     * Calcule un score de "motivation" simple basé sur les sentiments des congés d'un mois.
+     * ATTENTION : C'est une simplification extrême ! La "motivation" est très complexe.
+     *             Ceci est juste un indicateur basé sur le langage utilisé.
+     * @param monthlyLeaves La liste des congés pour un mois donné.
+     * @return Un score moyen (ex: -2 Très Négatif, -1 Négatif, 0 Neutre, 1 Positif, 2 Très Positif).
+     */
+    private double calculateMonthlyMotivationScore(List<Leave> monthlyLeaves) {
+        if (monthlyLeaves == null || monthlyLeaves.isEmpty()) {
+            return 0.0; // Ou une autre valeur par défaut
+        }
+
+        double totalScore = 0;
+        for (Leave leave : monthlyLeaves) {
+            totalScore += getScoreForSentiment(leave.getSentiment());
+        }
+
+        return totalScore / monthlyLeaves.size(); // Score moyen
+    }
+
+    /**
+     * Attribue une valeur numérique à chaque interprétation de sentiment.
+     * Adaptez ces scores selon votre interprétation.
+     */
+    private int getScoreForSentiment(String sentimentInterpretation) {
+        if (sentimentInterpretation == null) return 0;
+        // Utiliser startsWith pour être robuste aux emojis
+        if (sentimentInterpretation.startsWith("🟢 Très positif")) return 2;
+        if (sentimentInterpretation.startsWith("🟢 Positif")) return 1;
+        if (sentimentInterpretation.startsWith("🟡 Neutre")) return 0;
+        if (sentimentInterpretation.startsWith("🟠 Négatif")) return -1;
+        if (sentimentInterpretation.startsWith("🔴 Très négatif")) return -2;
+        return 0; // Score par défaut pour "Inconnu" ou autre
+    }
+    //  @Scheduled(cron = "0 */ // 2 * * * *")
    /* @Transactional(readOnly = true) // Bon pour les tâches de lecture seule
     public void checkApprovedLeaveDateStatus() {
         log.info("--- Démarrage Tâche Planifiée: Vérification Statut Congés Approuvés à {} ---", LocalDateTime.now());

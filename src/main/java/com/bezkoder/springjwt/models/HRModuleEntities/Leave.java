@@ -22,9 +22,6 @@ public class Leave {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long leaveId;
 
-    @Column(name = "predicted_leave_type")
-    private String predictedLeaveType;
-
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "employee_id", nullable = false)
     private Employee employee; // Links to the employee making the request
@@ -65,6 +62,8 @@ public class Leave {
 
     @Column(name = "action_date") // Changed name for clarity
     private LocalDate actionDate; // Corresponds to 'approvalDate' (Date of approve/reject)
+    @Column(name = "sentiment", length = 255)
+    private String sentiment;
 
     // Optional: Automatically set requestedOn date before persisting
     @PrePersist
@@ -76,6 +75,7 @@ public class Leave {
         if (startDate != null && endDate != null && numberOfDays == null) {
             calculateDays();
         }
+
     }
 
     // Optional: Recalculate days if dates change before update
